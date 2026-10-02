@@ -45,6 +45,14 @@
 #define T_SWX_US 30        // 30 us, NCS high to next NCS low for writes
 #define T_BEXIT_US 1       // 250 ns, last SCLK to NCS high for burst reads
 
+#if !defined(PMW3610_PERFORMANCE_VALUE)
+// PERFORMANCE register: 0x0D selects the 4 ms run-mode report rate and 0xF0
+// forces the sensor to stay awake (no downshift into the REST1-3 modes). The
+// keyboard is USB-powered, so trade idle power for no wake-up latency when the
+// ball starts moving.
+#define PMW3610_PERFORMANCE_VALUE 0xFD
+#endif
+
 //--------------------------------------------------------------------+
 // Pin Macros
 //--------------------------------------------------------------------+
@@ -121,11 +129,11 @@ static void pmw3610_write_reg(uint8_t reg, uint8_t value) {
   pmw3610_spi_clock_off();
 }
 
+// Only register writes need the SPI clock request; reads (including the
+// motion burst) work with the clock gated, so skipping the request avoids the
+// clock-on settle delay on every read.
 static uint8_t pmw3610_read_reg(uint8_t reg) {
-  pmw3610_spi_clock_on();
-  const uint8_t value = pmw3610_read_reg_internal(reg);
-  pmw3610_spi_clock_off();
-  return value;
+  return pmw3610_read_reg_internal(reg);
 }
 
 void pmw3610_set_cpi(uint16_t cpi) {
@@ -153,19 +161,17 @@ void pmw3610_set_enabled(bool enabled) {
   if (enabled) {
     pmw3610_write_reg(PMW3610_REG_POWER_UP_RESET, PMW3610_POWERUP_CMD_WAKEUP);
     timer_delay(10);
-    // Restore the normal awake performance setting after wakeup.
-    pmw3610_write_reg(PMW3610_REG_PERFORMANCE, 0x0D);
+    // Restore the awake performance setting after wakeup.
+    pmw3610_write_reg(PMW3610_REG_PERFORMANCE, PMW3610_PERFORMANCE_VALUE);
   } else {
     pmw3610_write_reg(PMW3610_REG_SHUTDOWN, PMW3610_SHUTDOWN_ENABLE);
   }
 }
 
 static void pmw3610_read_burst(uint8_t reg, uint8_t *buf, uint8_t len) {
-  pmw3610_spi_clock_on();
   CS_LOW();
   pmw3610_delay_us(T_NCS_SCLK_US);
   // In 3-wire mode the bidirectional SDIO pin must be driven while sending
-  spi_soft_set_sdio_input(false);
   // the burst address and switched to input before receiving data.
   spi_soft_set_sdio_input(false);
   pmw3610_write_byte(reg);
@@ -175,7 +181,6 @@ static void pmw3610_read_burst(uint8_t reg, uint8_t *buf, uint8_t len) {
     buf[i] = pmw3610_read_byte();
   pmw3610_delay_us(T_BEXIT_US);
   CS_HIGH();
-  pmw3610_spi_clock_off();
 }
 
 //--------------------------------------------------------------------+
@@ -237,8 +242,8 @@ bool pmw3610_init(void) {
   for (uint8_t reg = PMW3610_REG_MOTION; reg <= PMW3610_REG_DELTA_XY_H; reg++)
     (void)pmw3610_read_reg(reg);
 
-  // Configure performance: run at 4 ms polling interval while awake
-  pmw3610_write_reg(PMW3610_REG_PERFORMANCE, 0x0D);
+  // Configure performance: 4 ms run-mode reporting, forced awake by default
+  pmw3610_write_reg(PMW3610_REG_PERFORMANCE, PMW3610_PERFORMANCE_VALUE);
 
   // Configure CPI (axis orientation is applied in software on read)
   pmw3610_set_cpi(PMW3610_CPI);
@@ -293,9 +298,8 @@ bool pmw3610_read_motion(int16_t *dx, int16_t *dy) {
   *dx = x;
   *dy = y;
 
-  // Clear residual motion so the next burst read sees only new deltas.
-  pmw3610_write_reg(PMW3610_REG_MOTION, 0x00);
-
+  // The burst read itself clears the motion and delta registers, so no extra
+  // MOTION write is needed before the next read.
   return true;
 }
 
