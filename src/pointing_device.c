@@ -38,6 +38,15 @@
 #define POINTING_DEVICE_INIT_RETRY_MS 1000
 #endif
 
+// Per-axis gain in percent (keyboard.json x_scale / y_scale). Applied after
+// orientation, so X/Y refer to the keyboard axes.
+#ifndef POINTING_DEVICE_X_SCALE_PERCENT
+#define POINTING_DEVICE_X_SCALE_PERCENT 100
+#endif
+#ifndef POINTING_DEVICE_Y_SCALE_PERCENT
+#define POINTING_DEVICE_Y_SCALE_PERCENT 100
+#endif
+
 // Q15 sine table for 0-90 degrees in 1-degree steps, used for the runtime
 // rotation correction (round(sin(deg) * 32767)). Quadrant mapping covers the
 // full circle, so no atan2 or floating point math is needed. A positive
@@ -82,6 +91,9 @@ static int16_t rot_rem_x;
 static int16_t rot_rem_y;
 // Suppressed minor-axis motion carried between task calls (axis snapping)
 static int16_t snap_acc;
+// Sub-count axis scaling remainders carried between task calls
+static int16_t scale_rem_x;
+static int16_t scale_rem_y;
 
 //--------------------------------------------------------------------+
 // Helpers
@@ -142,6 +154,8 @@ static void pointing_device_update_transform_state(void) {
   rot_rem_x = 0;
   rot_rem_y = 0;
   snap_acc = 0;
+  scale_rem_x = 0;
+  scale_rem_y = 0;
 }
 
 // Load this half's side orientation from its local EEPROM, repairing a
@@ -258,8 +272,26 @@ static void pointing_device_apply_orientation(int16_t *dx, int16_t *dy) {
     y = (int16_t)oy64;
   }
 
+  x = pointing_device_scale_axis(x, POINTING_DEVICE_X_SCALE_PERCENT,
+                                 &scale_rem_x);
+  y = pointing_device_scale_axis(y, POINTING_DEVICE_Y_SCALE_PERCENT,
+                                 &scale_rem_y);
+
   *dx = x;
   *dy = y;
+}
+
+// Scale one axis by `percent`, carrying the sub-count remainder so slow
+// motion is neither lost nor biased toward one direction.
+static int16_t pointing_device_scale_axis(int16_t v, int16_t percent,
+                                          int16_t *rem) {
+  if (percent == 100)
+    return v;
+  const int32_t scaled = (int32_t)v * percent + *rem;
+  int32_t out = scaled / 100;
+  *rem = (int16_t)(scaled - out * 100);
+  out = out > 32767 ? 32767 : (out < -32768 ? -32768 : out);
+  return (int16_t)out;
 }
 
 // Axis snapping (cursor mode only): suppress the minor axis while it stays

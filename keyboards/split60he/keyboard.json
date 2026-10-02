@@ -40,6 +40,8 @@
     "swap_xy": false,
     "invert_x": false,
     "invert_y": true,
+    "x_scale": 100,
+    "y_scale": 120,
     "auto_mouse_layer": 2,
     "scroll_layer": 3
   },

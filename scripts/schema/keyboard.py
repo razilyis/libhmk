@@ -241,6 +241,11 @@ class KeyboardPointingDevice(StrictBaseModel):
     invert_x: bool = False
     # Invert Y axis
     invert_y: bool = False
+    # Per-axis gain in percent, applied after orientation on the sensing half.
+    # Compensates a sensor that reads one axis short (e.g. a sensor tilted
+    # against the ball surface).
+    x_scale: int = Field(default=100, ge=25, le=400)
+    y_scale: int = Field(default=100, ge=25, le=400)
     # Layer to temporarily activate when the sensor is moved (-1 to disable)
     auto_mouse_layer: int = Field(default=-1, ge=-1, le=7)
     # While this layer is active, pointer movement is sent as scroll (wheel)

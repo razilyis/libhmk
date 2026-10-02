@@ -429,6 +429,9 @@ if kb_json.pointing_device is not None and kb_json.pointing_device.enabled:
     build_flags.define("DEFAULT_POINTING_INVERT_X", "true" if final_inv_x else "false")
     build_flags.define("DEFAULT_POINTING_INVERT_Y", "true" if final_inv_y else "false")
 
+    build_flags.define("POINTING_DEVICE_X_SCALE_PERCENT", pd.x_scale)
+    build_flags.define("POINTING_DEVICE_Y_SCALE_PERCENT", pd.y_scale)
+
     if pd.auto_mouse_layer >= 0:
         build_flags.define("POINTING_DEVICE_AUTO_MOUSE_LAYER", pd.auto_mouse_layer)
 
