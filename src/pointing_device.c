@@ -234,6 +234,19 @@ static void pointing_device_send_hid(int16_t dx, int16_t dy) {
   }
 }
 
+// Scale one axis by `percent`, carrying the sub-count remainder so slow
+// motion is neither lost nor biased toward one direction.
+static int16_t pointing_device_scale_axis(int16_t v, int16_t percent,
+                                          int16_t *rem) {
+  if (percent == 100)
+    return v;
+  const int32_t scaled = (int32_t)v * percent + *rem;
+  int32_t out = scaled / 100;
+  *rem = (int16_t)(scaled - out * 100);
+  out = out > 32767 ? 32767 : (out < -32768 ? -32768 : out);
+  return (int16_t)out;
+}
+
 // Apply this half's side physical-axis compensation (swap, invert, rotation)
 // to raw sensor counts. Runs at accumulation time on the sensing half, so the
 // split link always carries oriented counts and the master only applies
@@ -279,19 +292,6 @@ static void pointing_device_apply_orientation(int16_t *dx, int16_t *dy) {
 
   *dx = x;
   *dy = y;
-}
-
-// Scale one axis by `percent`, carrying the sub-count remainder so slow
-// motion is neither lost nor biased toward one direction.
-static int16_t pointing_device_scale_axis(int16_t v, int16_t percent,
-                                          int16_t *rem) {
-  if (percent == 100)
-    return v;
-  const int32_t scaled = (int32_t)v * percent + *rem;
-  int32_t out = scaled / 100;
-  *rem = (int16_t)(scaled - out * 100);
-  out = out > 32767 ? 32767 : (out < -32768 ? -32768 : out);
-  return (int16_t)out;
 }
 
 // Axis snapping (cursor mode only): suppress the minor axis while it stays
