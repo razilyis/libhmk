@@ -46,11 +46,11 @@
 #define T_BEXIT_US 1       // 250 ns, last SCLK to NCS high for burst reads
 
 #if !defined(PMW3610_PERFORMANCE_VALUE)
-// PERFORMANCE register: 0x0D selects the 4 ms run-mode report rate and 0xF0
-// forces the sensor to stay awake (no downshift into the REST1-3 modes). The
-// keyboard is USB-powered, so trade idle power for no wake-up latency when the
-// ball starts moving.
-#define PMW3610_PERFORMANCE_VALUE 0xFD
+// PERFORMANCE register: 0x0D selects the 4 ms run-mode report rate with the
+// normal downshift into the REST modes. OR-ing in 0xF0 forces the sensor
+// awake, but on split60he that makes a resting ball report a slow, steady
+// drift, so it stays opt-in.
+#define PMW3610_PERFORMANCE_VALUE 0x0D
 #endif
 
 //--------------------------------------------------------------------+
@@ -242,7 +242,7 @@ bool pmw3610_init(void) {
   for (uint8_t reg = PMW3610_REG_MOTION; reg <= PMW3610_REG_DELTA_XY_H; reg++)
     (void)pmw3610_read_reg(reg);
 
-  // Configure performance: 4 ms run-mode reporting, forced awake by default
+  // Configure performance: 4 ms run-mode reporting
   pmw3610_write_reg(PMW3610_REG_PERFORMANCE, PMW3610_PERFORMANCE_VALUE);
 
   // Configure CPI (axis orientation is applied in software on read)
